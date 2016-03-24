@@ -156,7 +156,7 @@ data, dictionary, reverse_dictionary = build_dataset(words)
 
 batch_size=64
 num_unrollings=10
-embedding_size= 15
+embedding_size= 16
 
 class BatchGenerator(object):
   def __init__(self, text, batch_size, num_unrollings):
@@ -194,6 +194,7 @@ valid_batches = BatchGenerator(valid_text, 1, 1)
 ####################### MODEL #####################
 
 num_nodes = 64
+dropout_prob = 0.5
 
 graph = tf.Graph()
 with graph.as_default():
@@ -247,7 +248,7 @@ with graph.as_default():
   state = saved_state
   for i in train_data:
     embed = tf.nn.embedding_lookup(embeddings, i)
-    embed = tf.nn.dropout(embed, 0.8)
+    embed = tf.nn.dropout(embed, dropout_prob)
     output, state = lstm_cell(embed, output, state)
     outputs.append(output)
 
@@ -256,7 +257,7 @@ with graph.as_default():
                                 saved_state.assign(state)]):
     # Classifier.
     concat_outputs = tf.concat(0, outputs)
-    concat_outputs = tf.nn.dropout(concat_outputs, 0.8)
+    concat_outputs = tf.nn.dropout(concat_outputs, dropout_prob)
     logits = tf.nn.xw_plus_b(concat_outputs, w, b)
     loss = tf.reduce_mean(
       tf.nn.softmax_cross_entropy_with_logits(
@@ -293,7 +294,7 @@ with graph.as_default():
 
 ################# TRAIN ##################################
 
-num_steps = 700001
+num_steps = 200001
 summary_frequency = 100
 
 
@@ -345,7 +346,7 @@ with tf.Session(graph=graph) as session:
       #print(labels_batches[0].shape)
       print('Minibatch perplexity: %.2f' % float(
         np.exp(logprob(predictions, labels))))
-      if step % (summary_frequency * 2) == 0:
+      if step % (summary_frequency * 10) == 0:
         # Generate some samples.
         print('=' * 80)
         for _ in range(5):
@@ -357,12 +358,13 @@ with tf.Session(graph=graph) as session:
             #print(" --- feed: ", reverse_dictionary[feed[0]])
             prediction = sample_prediction.eval({sample_input: feed})
             #print(prediction)
-            next_bigram = dictionary[sentence[-1]+characters(prediction)[0]]
             #print("prediction: -%s-" % characters(prediction)[0])
             #print("bigram: -%s-" % (sentence[-1]+characters(prediction)[0]))
             #print(next_bigram)
+            next_bigram = dictionary[sentence[-1]+characters(sample(prediction))[0]]
             feed = np.array([next_bigram])
-            sentence += characters(prediction)[0]
+            sentence += reverse_dictionary[next_bigram][-1]
+            
           print(sentence)
         print('=' * 80)
 
